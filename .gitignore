@@ -1,0 +1,5 @@
+*.swp
+*.o
+lab*
+*.pdf
+xv6-public/
