@@ -1,0 +1,128 @@
+diff --git a/.gitignore b/.gitignore
+index 3e2c9de..6f38d5f 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -14,3 +14,5 @@ kernel
+ kernelmemfs
+ mkfs
+ .gdbinit
++*.swp
++tags
+diff --git a/Makefile b/Makefile
+index b4fd9a2..2352b43 100644
+--- a/Makefile
++++ b/Makefile
+@@ -172,6 +172,7 @@ UPROGS=\
+ 	_usertests\
+ 	_wc\
+ 	_zombie\
++    _date\
+ 
+ fs.img: mkfs README $(UPROGS)
+ 	./mkfs fs.img README $(UPROGS)
+diff --git a/date.c b/date.c
+new file mode 100644
+index 0000000..49d68a6
+--- /dev/null
++++ b/date.c
+@@ -0,0 +1,29 @@
++#include "types.h"
++#include "user.h"
++#include "date.h"
++
++int
++main(int argc, char *argv[])
++{
++  struct rtcdate r;
++
++  if (date(&r)) {
++    printf(2, "date failed\n");
++    exit();
++  }
++
++  // your code to print the time in any format you like...
++  /*
++    struct rtcdate {
++      uint second;
++      uint minute;
++      uint hour;
++      uint day;
++      uint month;
++      uint year;
++    };
++  */
++  printf(1, "%d/%d/%d %d:%d:%d\n", r.year, r.month, r.day, r.hour, r.minute, r.second);
++
++  exit();
++}
+diff --git a/syscall.c b/syscall.c
+index 799ebc2..ac6e1e3 100644
+--- a/syscall.c
++++ b/syscall.c
+@@ -98,6 +98,7 @@ extern int sys_unlink(void);
+ extern int sys_wait(void);
+ extern int sys_write(void);
+ extern int sys_uptime(void);
++extern int sys_date(void);
+ 
+ static int (*syscalls[])(void) = {
+ [SYS_fork]    sys_fork,
+@@ -121,6 +122,7 @@ static int (*syscalls[])(void) = {
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_date]    sys_date,
+ };
+ 
+ void
+diff --git a/syscall.h b/syscall.h
+index bc5f356..1a620b9 100644
+--- a/syscall.h
++++ b/syscall.h
+@@ -20,3 +20,4 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_date   22
+diff --git a/sysproc.c b/sysproc.c
+index 027a5e5..c310f18 100644
+--- a/sysproc.c
++++ b/sysproc.c
+@@ -89,3 +89,16 @@ sys_uptime(void)
+   release(&tickslock);
+   return xticks;
+ }
++
++int
++sys_date(void)
++{
++    struct rtcdate *pr;
++
++    if (argptr(0, (void*)&pr, sizeof(struct rtcdate)) < 0) {
++        return -1;
++    }
++
++    cmostime(pr);
++    return 0;
++}
+diff --git a/user.h b/user.h
+index f45b8d5..371dc75 100644
+--- a/user.h
++++ b/user.h
+@@ -23,6 +23,7 @@ int getpid(void);
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
++int date(struct rtcdate *r);
+ 
+ // ulib.c
+ int stat(char*, struct stat*);
+diff --git a/usys.S b/usys.S
+index 8bfd8a1..ba76d54 100644
+--- a/usys.S
++++ b/usys.S
+@@ -29,3 +29,4 @@ SYSCALL(getpid)
+ SYSCALL(sbrk)
+ SYSCALL(sleep)
+ SYSCALL(uptime)
++SYSCALL(date)
