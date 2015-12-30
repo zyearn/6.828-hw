@@ -1,5 +1,5 @@
 *.swp
 *.o
 lab*
-*.pdf
 xv6-public/
+others/class_from_net/*.pdf
