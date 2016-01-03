@@ -1,0 +1,74 @@
+diff --git a/sysproc.c b/sysproc.c
+index c310f18..dddd1c4 100644
+--- a/sysproc.c
++++ b/sysproc.c
+@@ -51,8 +51,14 @@ sys_sbrk(void)
+   if(argint(0, &n) < 0)
+     return -1;
+   addr = proc->sz;
+-  if(growproc(n) < 0)
++  if(n < 0 && growproc(n) < 0) {
+     return -1;
++  } else {
++    if (proc->sz + n >= KERNBASE)
++      return -1;
++
++    proc->sz += n;
++  }
+   return addr;
+ }
+ 
+diff --git a/trap.c b/trap.c
+index 3f80145..f6bf0c3 100644
+--- a/trap.c
++++ b/trap.c
+@@ -14,6 +14,9 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
+ struct spinlock tickslock;
+ uint ticks;
+ 
++int
++mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
++
+ void
+ tvinit(void)
+ {
+@@ -86,6 +89,26 @@ trap(struct trapframe *tf)
+               tf->trapno, cpu->id, tf->eip, rcr2());
+       panic("trap");
+     }
++
++    /***** hw code ******/
++    while (tf->trapno == T_PGFLT) {
++        char *mem;
++        mem = kalloc();
++        if (mem == 0) {
++            cprintf("allocuvm out of memory\n");
++            break;
++        }
++
++        memset(mem, 0, PGSIZE);
++        if (mappages(proc->pgdir, (char*)PGROUNDDOWN(rcr2()), PGSIZE, v2p(mem), PTE_W|PTE_U) < 0) {
++            cprintf("mappages in trap\n");
++            break;
++        }
++
++        return;
++    }
++    /***** hw code ******/
++
+     // In user space, assume process misbehaved.
+     cprintf("pid %d %s: trap %d err %d on cpu %d "
+             "eip 0x%x addr 0x%x--kill proc\n",
+diff --git a/vm.c b/vm.c
+index 5326d14..effd99e 100644
+--- a/vm.c
++++ b/vm.c
+@@ -67,7 +67,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
+ // Create PTEs for virtual addresses starting at va that refer to
+ // physical addresses starting at pa. va and size might not
+ // be page-aligned.
+-static int
++int
+ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
+ {
+   char *a, *last;
