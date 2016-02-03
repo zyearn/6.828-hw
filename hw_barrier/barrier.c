@@ -27,6 +27,7 @@ barrier_init(void)
 static void 
 barrier()
 {
+    // if you do not understand following code, please read https://computing.llnl.gov/tutorials/pthreads/#ConditionVariables
     pthread_mutex_lock(&bstate.barrier_mutex);
     bstate.nthread++;
 
